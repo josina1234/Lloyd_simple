@@ -90,12 +90,22 @@ class Lloyd:
 
         if len(self.neighbour_positions) > 0:
             # compute voronoi cell
+
             # get cell points ignoring any encumbrances and barriers
+            # Case: delta_ij <= (||p_i - p_j||)/2
+            # cell_points are all q within circle with ||q-p_i|| < ||q-p_j|| for all neighbours j
             cell_points = self.find_closest_points(circle_points) # tupel-list
-            # filter cell points considering barriers and encumbrances
+            # filter out points too close to barriers
+            cell_points = self.consider_barriers(cell_points)
+            # filter cell points considering encumbrances
+            # Case: delta_ij > (||p_i - p_j||)/2
+            #  ||q-p_i|| < ||q-p_j~|| for all neighbours j
             cell_points_filtered = self.consider_encumbrances(cell_points)
+            # if no points left in cell_points_filtered, return current position as centroid
+            if len(cell_points_filtered) == 0:
+                cell_points_filtered = [self.robot_position]
 
-
+            x_cell, y_cell = zip(*cell_points_filtered) # unzip tupel-list (* is unpacking operator)
             
         else:
             # circle_points are voronoi cell
@@ -140,4 +150,15 @@ class Lloyd:
         return closer_points # list of tuples
     
     def consider_encumbrances(self, cell_points):
-        
+        # encumbrance of neighbours and barriers
+        # first we filter out points that are too close to barriers
+        # remove coordinates in cell_points that are closer than encumbrance_barriers to any barrier
+        if len(self.barrier_positions) > 0:
+            barrier_positions = np.array(self.barrier_positions)
+            dists_to_barriers = np.linalg.norm(
+                np.array(cell_points)[:, np.newaxis] - barrier_positions, axis=2)
+            valid_indices = np.all(dists_to_barriers > self.encumbrance_barriers, axis=1)
+            cell_points = np.array(cell_points)[valid_indices].tolist()
+
+
+        return cell_points

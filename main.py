@@ -22,7 +22,7 @@ def main():
         "d3": 0.1,                      # d3 eq. (9) TODO scaling factor
         "beta_min": 0.1,                # Minimum value for spreading factor rho TODO scaling factor
         "betaD": [0.5]*N,               # Desired spreading factor \rho^D TODO scaling factor
-        "size": [0.48]*N,               # BlueROV2s encumbrance diameter: \delta
+        "size": [0.24]*N,               # BlueROV2s encumbrance (radius): \delta
         "k": [20]*N,                    # Control parameter k_p TODO scaling factor
         "flag_plot": 1,                 
         "write_file": 1,
