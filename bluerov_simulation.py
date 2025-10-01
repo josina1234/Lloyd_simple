@@ -3,14 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 from BlueRovsInit import BlueRovsInit
-from lloyd_path import Lloyd, aggregate
+from lloyd_path import Lloyd, compute_centroid, applyrules
 
 
 class bluerov_simulation:
 
     def __init__(self, parameters):
         self.params = parameters
-        # self.tempo = 0 # tracks max velocity for reporting
+        self.max_velocity = 0  # tracks max velocity for reporting
         if self.params["N"] > 6:
             print("Maximale Anzahl an Bluerovs ist 6 aufgrund der Tankgröße.")
             self.params["N"] = 6
@@ -31,11 +31,11 @@ class bluerov_simulation:
             self.params["N"]
         )  # Initialization of the flag that indicates if the robot i is in its goal region
         # self.file_path = 'test' + str(self.params["h"]) + '.txt' # File path to save the data
-        self.current_positions_x = np.zeros(
-            self.params["N"])  # initialization of current x positions
-        self.current_positions_y = np.zeros(
-            self.params["N"])  # initialization of current y positions
-        self.currents_theta = np.zeros(
+        # self.current_positions_x = np.zeros(
+        #     self.params["N"])  # initialization of current x positions
+        # self.current_positions_y = np.zeros(
+        #     self.params["N"])  # initialization of current y positions
+        self.theta = np.zeros(
             self.params["N"])  # initialization of current orientations
         self.flag_convergence = 0  # Initialization of the flag that indicates if all the robots have entered their goal regions
         self.current_positions = None
@@ -88,10 +88,24 @@ class bluerov_simulation:
             self.Lloyd2[i].aggregate([], self.beta[i], self.goal_positions[i])
 
             # Berechnung der neuen Zielpositionen (c1 und c2)
-            # c1 mit Nachbarn 
+            # c1 mit Nachbarn
             # c2 ohne Nachbarn
-            self.c1[i], self.c2[i] = self.Lloyd[i].compute_centroid()
-            self.c1_no_rotation[i], self.c2_no_rotation[i] = self.Lloyd2[i].compute_centroid()
+            self.c1[i], self.c2[i] = self.Lloyd[i].get_centroid()
+            self.c1_no_rotation[i], _ = self.Lloyd2[
+                i].get_centroid()
+
+            # control input
+            u = self.Lloyd[i].compute_control(self.c1[i][0], self.c1[i][1])
+
+            if np.linalg.norm(u) > self.max_velocity:  # in erster iteration 0
+                self.max_velocity = np.linalg.norm(u)
+
+            d2 = 3 * max(self.params["size"])
+            d4 = d2
+
+            applyrules(i, self.params, self.beta, self.current_positions,
+                       self.c1, self.c2, self.theta, self.goal_positions,
+                       self.BlueRovs, self.c1_no_rotation, d2, d4)
             
-
-
+            
+            

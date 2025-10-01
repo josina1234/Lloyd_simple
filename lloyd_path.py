@@ -20,6 +20,7 @@
 from matplotlib.pylab import beta
 from barriers import def_barriers
 import numpy as np
+import math
 
 
 class Lloyd:
@@ -84,7 +85,7 @@ class Lloyd:
             for i in range(len(self.barrier_positions))
         ]  # prüfen ob gewüschte form herauskommt
 
-    def compute_centroid(self):
+    def get_centroid(self):
         # neue Centroiden berechnen
         circle_points = self.get_circle_points()  # tupel-liste
 
@@ -116,6 +117,33 @@ class Lloyd:
 
         x_cell_no_neigh, y_cell_no_neigh = zip(
             *circle_points)  # unzip tupel-list (* is unpacking operator)
+
+        # compute scalar values for weighted centroid
+        scalar_values = self.compute_scalar_values(x_cell, y_cell)
+        scalar_values_no_neigh = self.compute_scalar_values(
+            x_cell_no_neigh, y_cell_no_neigh)
+
+        # make sure everything is numpy array
+        x_cell = np.array(x_cell)
+        y_cell = np.array(y_cell)
+        scalar_values = np.array(scalar_values)
+        x_cell_no_neigh = np.array(x_cell_no_neigh)
+        y_cell_no_neigh = np.array(y_cell_no_neigh)
+        scalar_values_no_neigh = np.array(scalar_values_no_neigh)
+
+        # compute weighted centroids
+
+        c1_x = np.sum(x_cell * scalar_values) / np.sum(scalar_values)
+        c1_y = np.sum(y_cell * scalar_values) / np.sum(scalar_values)
+        c2_x = np.sum(x_cell_no_neigh *
+                      scalar_values_no_neigh) / np.sum(scalar_values_no_neigh)
+        c2_y = np.sum(y_cell_no_neigh *
+                      scalar_values_no_neigh) / np.sum(scalar_values_no_neigh)
+
+        c1 = np.array([c1_x, c1_y])  # nieghbours
+        c2 = np.array([c2_x, c2_y])  # no neighbours
+
+        return c1, c2
 
     def get_circle_points(self):
         x_center, y_center = self.robot_position
@@ -232,3 +260,64 @@ class Lloyd:
             cell_points = np.array(cell_points)[valid_indices].tolist()
 
         return cell_points
+
+    def compute_scalar_values(self, x_cell, y_cell):
+        x_cell = np.array(x_cell)
+        y_cell = np.array(y_cell)
+
+        dists_to_goal = np.linalg.norm(np.column_stack(
+            (x_cell - self.goal_position[0], y_cell - self.goal_position[1])),
+                                       axis=1)
+        scalar_vals = np.exp(-dists_to_goal /
+                             self.beta)  # beta is spreading factor rho
+        return scalar_vals.tolist()
+
+    def compute_control(self, **kwargs):
+        centroid = kwargs.get('centroid', None)
+        if centroid is None:
+            centroid, _ = self.get_centroid()
+
+        error = centroid - self.robot_position
+        u = self.k_p * error  # control input # PROPORTIONAL CONTROLLER
+        # TODO maybe upgrade to General COntrol Law
+        # return u if np.linalg.norm(u) <= self.v_max else u / np.linalg.norm(u) * self.v_max TODO
+        return u
+
+
+def applyrules(i, params, beta, current_positions, c1, c2, theta,
+               goal_positions, BlueRovs, c1_no_rotation, d2, d4):
+    c1_i = np.array(c1[i])  # centroid with neighbours
+    current_position_i = np.array(current_positions[i])
+
+    # first condition
+    dist_c1_c2 = np.linalg.norm(c1_i - np.array(c2[i]))
+    if dist_c1_c2 > d2 and np.linalg.norm(current_position_i -
+                                          c1_i) < params["d1"]:
+        beta[i] = max(beta[i] - params["dt"], params["beta_min"])
+    else:
+        beta[i] = beta[i] - params["dt"] * (beta[i] - params["betaD"][i])
+
+    # second condition
+    dist_c1_c2_d4 = dist_c1_c2 > d4
+    if dist_c1_c2_d4 and np.linalg.norm(current_position_i -
+                                        c1_i) < params["d3"]:
+        theta[i] = min(theta[i] + params["dt"], np.pi / 2)
+    else:
+        theta[i] = max(0, theta[i] - params["dt"])
+
+    # third condition
+    if theta[i] == np.pi / 2 and np.linalg.norm(current_position_i - np.array(
+            c1_no_rotation[i])) > np.linalg.norm(current_position_i - c1_i):
+        theta[i] = 0
+
+    # compute the angle and new position
+    angle = np.arctan2(goal_positions[i][1] - current_position_i[1],
+                       goal_positions[i][0] - current_position_i[0])
+    new_angle = angle - theta[i]
+    distance = np.sqrt((goal_positions[i][0] - current_position_i[0])**2 +
+                       (goal_positions[i][1] - current_position_i[1])**2)
+    BlueRovs.goal_positions[i][
+        0] = current_position_i[0] + distance * math.cos(new_angle) # new goalposition x
+    BlueRovs.goal_positions[i][
+        1] = current_position_i[1] + distance * math.sin(new_angle) # new goalposition y
+    # BlueRovs.destinations[i][0] = current_position
