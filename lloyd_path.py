@@ -86,7 +86,7 @@ class Lloyd:
 
     def compute_centroid(self):
         # neue Centroiden berechnen
-        circle_points = self.get_circle_points() # tupel-liste
+        circle_points = self.get_circle_points()  # tupel-liste
 
         if len(self.neighbour_positions) > 0:
             # compute voronoi cell
@@ -94,7 +94,7 @@ class Lloyd:
             # get cell points ignoring any encumbrances and barriers
             # Case: delta_ij <= (||p_i - p_j||)/2
             # cell_points are all q within circle with ||q-p_i|| < ||q-p_j|| for all neighbours j
-            cell_points = self.find_closest_points(circle_points) # tupel-list
+            cell_points = self.find_closest_points(circle_points)  # tupel-list
             # filter out points too close to barriers
             cell_points = self.consider_barriers(cell_points)
             # filter cell points considering encumbrances
@@ -105,13 +105,17 @@ class Lloyd:
             if len(cell_points_filtered) == 0:
                 cell_points_filtered = [self.robot_position]
 
-            x_cell, y_cell = zip(*cell_points_filtered) # unzip tupel-list (* is unpacking operator)
-            
+            x_cell, y_cell = zip(
+                *cell_points_filtered
+            )  # unzip tupel-list (* is unpacking operator)
+
         else:
             # circle_points are voronoi cell
-            x_cell, y_cell = zip(*circle_points) # unzip tupel-list (* is unpacking operator)
+            x_cell, y_cell = zip(
+                *circle_points)  # unzip tupel-list (* is unpacking operator)
 
-        x_cell_no_neigh, y_cell_no_neigh = zip(*circle_points) # unzip tupel-list (* is unpacking operator)
+        x_cell_no_neigh, y_cell_no_neigh = zip(
+            *circle_points)  # unzip tupel-list (* is unpacking operator)
 
     def get_circle_points(self):
         x_center, y_center = self.robot_position
@@ -133,32 +137,98 @@ class Lloyd:
         distances = np.sqrt((x - x_center)**2 + (y - y_center)**2)
         valid_indices = np.where(distances <= self.radius)
 
-        circle_points = list(zip(x[valid_indices], y[valid_indices])) # zip makes tuples
+        circle_points = list(zip(x[valid_indices],
+                                 y[valid_indices]))  # zip makes tuples
         return circle_points
 
     def find_closest_points(self, circle_points):
         # all circle_points closer to robot i than to any neighbour
-        dists_to_robot = np.linalg.norm(
-            np.array(circle_points) - self.robot_position, axis=1)
+        dists_to_robot = np.linalg.norm(np.array(circle_points) -
+                                        self.robot_position,
+                                        axis=1)
         dists_to_neighbours = np.linalg.norm(
-            np.array(circle_points)[:, np.newaxis] - np.array(self.neighbour_positions),
-            axis=2)  # shape (num_circle_points, num_neighbours) # table with all distances
+            np.array(circle_points)[:, np.newaxis] -
+            np.array(self.neighbour_positions),
+            axis=2
+        )  # shape (num_circle_points, num_neighbours) # table with all distances
         # demand: dist to robot < dist to any neighbour
-        valid_indices = np.all(dists_to_robot[:, np.newaxis] < dists_to_neighbours, axis=1) # shape (num_circle_points,) boolean array
+        valid_indices = np.all(
+            dists_to_robot[:, np.newaxis] < dists_to_neighbours,
+            axis=1)  # shape (num_circle_points,) boolean array
 
         closer_points = np.array(circle_points)[valid_indices].tolist()
-        return closer_points # list of tuples
-    
+        return closer_points  # list of tuples
+
     def consider_encumbrances(self, cell_points):
-        # encumbrance of neighbours and barriers
+
+        index = []
+        for j, neighbour in enumerate(self.neighbour_positions):
+            # encumbrance of neighbours
+            # vector from i to j for middle point between i and j
+            dx = self.robot_position[0] - neighbour[0]
+            dy = self.robot_position[1] - neighbour[1]
+
+            if abs(dx) < 0.001:
+                dx = 0.001  # avoid division by zero
+            if abs(dy) < 0.001:
+                dy = 0.001  # avoid division by zero
+
+            m = dy / dx  # slope
+
+            if abs(m) < 0.001:
+                m = 0.001  # avoid division by zero
+
+            # coordinates of middle point
+            xm = (self.robot_position[0] + neighbour[0]) / 2
+            ym = (self.robot_position[1] + neighbour[1]) / 2
+
+            # length of that vector
+
+            dm = np.linalg.norm(xm - self.robot_position[0],
+                                ym - self.robot_position[1])
+
+            # r < 1/2 dm --> r < 1/4 ||p_i - p_j|| --> delta_ij < 1/2 ||p_i - p_j||
+
+            if dm < self.encumbrance_neighbours[j] + self.encumbrance:
+                normal_ij = np.array([dx, dy]) / np.linalg.norm([dx, dy])
+                solx = xm + (self.encumbrance_neighbours[j] +
+                             self.encumbrance - dm) * normal_ij[0]
+                soly = ym + (self.encumbrance_neighbours[j] +
+                             self.encumbrance - dm) * normal_ij[1]
+
+                # Geradengleichung für Trennungslinie der Zelle aufstellen und umstellen
+                # y = - 1/m * (x - solx) + soly
+                # y + 1/m * (x - solx) - soly = 0
+                if self.robot_position[1] + 1 / m * (self.robot_position[0] -
+                                                     solx) - soly > 0:
+                    # Robot i is above the line
+                    for k, point in enumerate(cell_points):
+                        if point[1] + 1 / m * (point[0] - solx) - soly < 0:
+                            index.append(
+                                k)  # all points on the wrong side of the line
+                else:
+                    # Robot i is below the line
+                    for k, point in enumerate(cell_points):
+                        if point[1] + 1 / m * (point[0] - solx) - soly > 0:
+                            index.append(
+                                k)  # all points on the wrong side of the line
+        cell_points_filtered = [
+            point for k, point in enumerate(cell_points) if k not in index
+        ]
+        return cell_points_filtered
+
+    def consider_barriers(self, cell_points):
+        # encumbrance of barriers
         # first we filter out points that are too close to barriers
         # remove coordinates in cell_points that are closer than encumbrance_barriers to any barrier
         if len(self.barrier_positions) > 0:
             barrier_positions = np.array(self.barrier_positions)
             dists_to_barriers = np.linalg.norm(
-                np.array(cell_points)[:, np.newaxis] - barrier_positions, axis=2)
-            valid_indices = np.all(dists_to_barriers > self.encumbrance_barriers, axis=1)
+                np.array(cell_points)[:, np.newaxis] - barrier_positions,
+                axis=2)
+            valid_indices = np.all(dists_to_barriers
+                                   > self.encumbrance_barriers,
+                                   axis=1)
             cell_points = np.array(cell_points)[valid_indices].tolist()
-
 
         return cell_points
