@@ -14,7 +14,7 @@ class BlueRovsInit:
                 x_start = 0.3 + (i - 3) * 0.7
                 x_goal = x_start
                 y_start = 3.2
-                y_goal = 0.8
+                y_goal = 1.0
             start_positions.append((x_start, y_start))
             goal_positions.append((x_goal, y_goal))
 

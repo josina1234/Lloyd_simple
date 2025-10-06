@@ -40,6 +40,7 @@ def def_barriers(step_size):
     basin_corners = np.array([[0, 0], [dim_x, 0], [dim_x, dim_y], [0, dim_y]])
     # obstacle corners (Must be axis-aligned rectangles)
     obstacle_corners = np.array([[0.75, 1.95], [1.25, 1.95], [1.25, 2.05], [0.75, 2.05]])
+
     # # step size for barriers
     # self.step_size = step_size # m adjustable kommt aus main.py "dx"
 
@@ -59,6 +60,8 @@ def get_limits():
     y_lim = np.array([0, 4])
     x_lim_obstacle = np.array([0.75, 1.25])
     y_lim_obstacle = np.array([1.95, 2.05])
+
+
 
     # return basinlimits, obstacle limits
 

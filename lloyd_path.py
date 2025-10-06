@@ -22,6 +22,8 @@ from barriers import def_barriers, get_limits
 import numpy as np
 import math
 
+import time
+
 
 class Lloyd:
 
@@ -37,7 +39,6 @@ class Lloyd:
         self.step_size = step_size
         self.dt = dt
         self.encumbrance_barriers_float = encumbrance_barriers
-        self.basin_limits, self.obstacle_limits = get_limits()  # TODO
         self.barriers_unfiltered = def_barriers(step_size)  # TODO entfernen
         # ggf noch v_max TODO
         self.v_max = v_max
@@ -91,15 +92,15 @@ class Lloyd:
         # neue Centroiden berechnen
         circle_points = self.get_circle_points()  # tupel-liste
 
+        # filter out points too close to barriers and all points behind barriers
+        circle_points = self.consider_barriers(circle_points)
+
         if len(self.neighbour_positions) > 0:
             # compute voronoi cell
 
-            # get cell points ignoring any encumbrances and barriers
             # Case: delta_ij <= (||p_i - p_j||)/2
             # cell_points are all q within circle with ||q-p_i|| < ||q-p_j|| for all neighbours j
             cell_points = self.find_closest_points(circle_points)  # tupel-list
-            # filter out points too close to barriers and all points behind barriers
-            cell_points = self.consider_barriers(cell_points)
             # filter cell points considering encumbrances
             # Case: delta_ij > (||p_i - p_j||)/2
             #  ||q-p_i|| < ||q-p_j~|| for all neighbours j
@@ -251,38 +252,57 @@ class Lloyd:
         # remove coordinates in cell_points that are closer than encumbrance_barriers to any (filtered) barrier
 
         if len(self.barrier_positions) > 0:
-            barrier_positions = np.array(self.barrier_positions)
+            # GEOMETRIC FILTERING
+            # first we filter out points that are outside the basin or inside an obstacle
+            basin_limits, obstacle_limits = get_limits()  # TODO
 
             cell_points = np.array(cell_points)  # shape (num_cell_points, 2)
             x, y = cell_points[:, 0], cell_points[:, 1]
 
+            print(f"length of cell:points before filtering in consider barriers: {len(cell_points)}")
+
+            # buffer to mask, consisting of robot encumbrance + barrier encumbrance
+            buffer = self.encumbrance + self.encumbrance_barriers_float
+
             # basin-mask Check (all points inside limits are valid)
-            basin_mask = ((x > self.basin_limits[0][0]) &
-                          (x < self.basin_limits[0][1]) &
-                          (y > self.basin_limits[1][0]) &
-                          (y < self.basin_limits[1][1]))
+            basin_mask = ((x > basin_limits[0][0] + buffer) &
+                          (x < basin_limits[0][1] - buffer) &
+                          (y > basin_limits[1][0] + buffer) &
+                          (y < basin_limits[1][1] - buffer))
 
             # obstacle-mask Check (all points outside limits are valid)
             # ~ is the NOT operator
-            obstacle_mask = ~((x > self.obstacle_limits[0][0]) &
-                              (x < self.obstacle_limits[0][1]) &
-                              (y > self.obstacle_limits[1][0]) &
-                              (y < self.obstacle_limits[1][1]))
+
+            obstacle_mask = ~((x >= obstacle_limits[0][0] + buffer) &
+                              (x <= obstacle_limits[0][1] - buffer) &
+                              (y >= obstacle_limits[1][0] + buffer) &
+                              (y <= obstacle_limits[1][1] - buffer))
 
             valid_mask = basin_mask & obstacle_mask
 
-            cell_points = cell_points[valid_mask].tolist()
+            cell_points = cell_points[valid_mask]
+
+            print(f"after geometric filtering: {len(cell_points)}")
+
+            # DISTANCE FILTERING
+            # now filter out points that are too close to barriers
+            barrier_positions = np.array(self.barrier_positions)
 
             # delta_barriers_robot_position =
             dists_to_barriers = np.linalg.norm(
                 np.array(cell_points)[:, np.newaxis] - barrier_positions,
                 axis=2)
+            min_dists_to_barriers = np.min(dists_to_barriers, axis=1)
+            safety_margin = self.encumbrance_barriers_float + self.encumbrance
+            valid_indices_new = min_dists_to_barriers > safety_margin
             valid_indices = np.all(dists_to_barriers
-                                   > self.encumbrance_barriers + np.full_like(self.encumbrance_barriers, self.encumbrance),
-                                   axis=1)
-            cell_points = np.array(cell_points)[valid_indices].tolist()
+                                   > safety_margin,axis=1)
 
-        return cell_points
+            cell_points = np.array(cell_points)[valid_indices]
+
+            print(f"after distance filtering: {len(cell_points)}")
+
+        return cell_points.tolist()
 
     def compute_scalar_values(self, x_cell, y_cell):
         x_cell = np.array(x_cell)

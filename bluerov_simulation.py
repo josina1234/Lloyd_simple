@@ -14,7 +14,7 @@ class bluerov_simulation:
         self.params = parameters
         self.max_velocity = 0  # tracks max velocity for reporting
         if self.params["N"] > 6:
-            print("Maximale Anzahl an Bluerovs ist 6 aufgrund der Tankgröße.")
+            print("Maximale Anzahl an Bluerovs ist 6 aufgrund der basingröße.")
             self.params["N"] = 6
             print(f'{self.params["N"]} Bluerovs werden verwendet.')
 
@@ -93,7 +93,6 @@ class bluerov_simulation:
             neighbour_positions = np.delete(
                 self.current_positions, i,
                 axis=0)  # removes the position of i-th robot
-            print(f'neighbour_positions for robot {i}: {neighbour_positions}')
 
             # Update both Lloyd instances with Nachbarinformationen
             # Ergebnis sind zwei arrays mit den Nachbarpositionen bzw. der Größe der Nachbarn
@@ -115,7 +114,9 @@ class bluerov_simulation:
                 self.max_velocity = np.linalg.norm(u)
 
             d2 = 3 * max(self.params["size"])
-            d4 = d2
+            d4 = d2  # distance for repulsion from other robots # originally = d2
+            # d2 = 0.8
+            # d4 = 1.6
 
             applyrules(i, self.params, self.beta, self.current_positions,
                        self.c1, self.c2, self.theta, self.goal_positions,
@@ -169,7 +170,7 @@ class bluerov_simulation:
         self.ax1.set_title("BlueROV Simulation with Lloyd Algorithm",
                            fontsize=14)
 
-        # Set plot limits based on tank dimensions
+        # Set plot limits based on basin dimensions
         self.ax1.set_xlim(self.params["xlim"][0] - 0.1,
                           self.params["xlim"][1] + 0.1)
         self.ax1.set_ylim(self.params["ylim"][0] - 0.1,
@@ -185,7 +186,7 @@ class bluerov_simulation:
 
     def _plot_barriers(self):
         """
-        Plot tank walls and obstacles
+        Plot basin walls and obstacles
         """
         # Get barrier coordinates
         barriers = def_barriers(self.params["dx"])
@@ -196,7 +197,7 @@ class bluerov_simulation:
 
         for point in barriers:
             x, y = point
-            # Points on the tank boundary are basin walls
+            # Points on the basin boundary are basin walls
             if (abs(x - self.params["xlim"][0]) < 1e-6
                     or abs(x - self.params["xlim"][1]) < 1e-6
                     or abs(y - self.params["ylim"][0]) < 1e-6
@@ -213,7 +214,7 @@ class bluerov_simulation:
                              c='black',
                              s=2,
                              alpha=0.8,
-                             label='Tank Walls')
+                             label='basin Walls')
 
         # Plot obstacles
         if obstacle_points:
@@ -225,16 +226,16 @@ class bluerov_simulation:
                              alpha=0.9,
                              label='Obstacles')
 
-        # Add tank boundary rectangle for clearer visualization
-        tank_rect = patches.Rectangle(
+        # Add basin boundary rectangle for clearer visualization
+        basin_rect = patches.Rectangle(
             (self.params["xlim"][0], self.params["ylim"][0]),
             self.params["xlim"][1] - self.params["xlim"][0],
             self.params["ylim"][1] - self.params["ylim"][0],
             linewidth=3,
             edgecolor='black',
             facecolor='none',
-            label='Tank Boundary')
-        self.ax1.add_patch(tank_rect)
+            label='basin Boundary')
+        self.ax1.add_patch(basin_rect)
 
         # Add obstacle rectangle for better visualization
         # Based on barriers.py: obstacle is at [[0.75, 1.95], [1.25, 1.95], [1.25, 2.05], [0.75, 2.05]]
