@@ -18,7 +18,7 @@
 # barriers in jeden Schritt aktualisieren
 
 from matplotlib.pylab import beta
-from barriers import def_barriers
+from barriers import def_barriers, get_limits
 import numpy as np
 import math
 
@@ -27,7 +27,7 @@ class Lloyd:
 
     def __init__(self, robot_i_position, radius, encumbrance_i,
                  encumbrance_neighbours, k_p_i, step_size, dt,
-                 encumbrance_barriers):  #ggf noch v_max TODO
+                 encumbrance_barriers, v_max):  #ggf noch v_max TODO
         # initialisieren des Klassenobjektes des i-ten Roboters
         self.robot_position = robot_i_position  # zunächst Startpositionen
         self.radius = radius  # same for all robots
@@ -37,8 +37,10 @@ class Lloyd:
         self.step_size = step_size
         self.dt = dt
         self.encumbrance_barriers_float = encumbrance_barriers
-        self.barriers_unfiltered = def_barriers(step_size)  # TODO
+        self.basin_limits, self.obstacle_limits = get_limits()  # TODO
+        self.barriers_unfiltered = def_barriers(step_size)  # TODO entfernen
         # ggf noch v_max TODO
+        self.v_max = v_max
 
     # wird in jeder Iteration aufgerufen und deklariert die Nachbarpositionen neu
     def aggregate(self, neighbour_positions, beta_i, goal_position_i):
@@ -58,7 +60,7 @@ class Lloyd:
 
         dist = np.linalg.norm(self.neighbour_positions - self.robot_position,
                               axis=1)
-        valid_indices = np.where(dist <= 2 * self.radius)
+        valid_indices = np.where(dist <= 2 * self.radius)[0]
 
         self.neighbour_positions = self.neighbour_positions[
             valid_indices].tolist()
@@ -76,7 +78,7 @@ class Lloyd:
 
         dist = np.linalg.norm(self.barriers_unfiltered - self.robot_position,
                               axis=1)
-        valid_indices = np.where(dist <= self.radius)
+        valid_indices = np.where(dist <= self.radius + self.encumbrance_barriers_float)
 
         self.barrier_positions = self.barriers_unfiltered[
             valid_indices].tolist()
@@ -96,7 +98,7 @@ class Lloyd:
             # Case: delta_ij <= (||p_i - p_j||)/2
             # cell_points are all q within circle with ||q-p_i|| < ||q-p_j|| for all neighbours j
             cell_points = self.find_closest_points(circle_points)  # tupel-list
-            # filter out points too close to barriers
+            # filter out points too close to barriers and all points behind barriers
             cell_points = self.consider_barriers(cell_points)
             # filter cell points considering encumbrances
             # Case: delta_ij > (||p_i - p_j||)/2
@@ -211,12 +213,10 @@ class Lloyd:
             ym = (self.robot_position[1] + neighbour[1]) / 2
 
             # length of that vector
-
-            dm = np.linalg.norm(xm - self.robot_position[0],
-                                ym - self.robot_position[1])
+            dm = np.linalg.norm(
+                [xm - self.robot_position[0], ym - self.robot_position[1]])
 
             # r < 1/2 dm --> r < 1/4 ||p_i - p_j|| --> delta_ij < 1/2 ||p_i - p_j||
-
             if dm < self.encumbrance_neighbours[j] + self.encumbrance:
                 normal_ij = np.array([dx, dy]) / np.linalg.norm([dx, dy])
                 solx = xm + (self.encumbrance_neighbours[j] +
@@ -248,14 +248,37 @@ class Lloyd:
     def consider_barriers(self, cell_points):
         # encumbrance of barriers
         # first we filter out points that are too close to barriers
-        # remove coordinates in cell_points that are closer than encumbrance_barriers to any barrier
+        # remove coordinates in cell_points that are closer than encumbrance_barriers to any (filtered) barrier
+
         if len(self.barrier_positions) > 0:
             barrier_positions = np.array(self.barrier_positions)
+
+            cell_points = np.array(cell_points)  # shape (num_cell_points, 2)
+            x, y = cell_points[:, 0], cell_points[:, 1]
+
+            # basin-mask Check (all points inside limits are valid)
+            basin_mask = ((x > self.basin_limits[0][0]) &
+                          (x < self.basin_limits[0][1]) &
+                          (y > self.basin_limits[1][0]) &
+                          (y < self.basin_limits[1][1]))
+
+            # obstacle-mask Check (all points outside limits are valid)
+            # ~ is the NOT operator
+            obstacle_mask = ~((x > self.obstacle_limits[0][0]) &
+                              (x < self.obstacle_limits[0][1]) &
+                              (y > self.obstacle_limits[1][0]) &
+                              (y < self.obstacle_limits[1][1]))
+
+            valid_mask = basin_mask & obstacle_mask
+
+            cell_points = cell_points[valid_mask].tolist()
+
+            # delta_barriers_robot_position =
             dists_to_barriers = np.linalg.norm(
                 np.array(cell_points)[:, np.newaxis] - barrier_positions,
                 axis=2)
             valid_indices = np.all(dists_to_barriers
-                                   > self.encumbrance_barriers,
+                                   > self.encumbrance_barriers + np.full_like(self.encumbrance_barriers, self.encumbrance),
                                    axis=1)
             cell_points = np.array(cell_points)[valid_indices].tolist()
 
@@ -280,8 +303,15 @@ class Lloyd:
         error = centroid - self.robot_position
         u = self.k_p * error  # control input # PROPORTIONAL CONTROLLER
         # TODO maybe upgrade to General COntrol Law
-        # return u if np.linalg.norm(u) <= self.v_max else u / np.linalg.norm(u) * self.v_max TODO
-        return u
+        return u if np.linalg.norm(
+            u) <= self.v_max else u / np.linalg.norm(u) * self.v_max
+
+    def move(self):
+        x, y = self.robot_position
+        u = self.compute_control()
+        x_new = x + u[0] * self.dt
+        y_new = y + u[1] * self.dt
+        return np.array([x_new, y_new])
 
 
 def applyrules(i, params, beta, current_positions, c1, c2, theta,
@@ -316,8 +346,8 @@ def applyrules(i, params, beta, current_positions, c1, c2, theta,
     new_angle = angle - theta[i]
     distance = np.sqrt((goal_positions[i][0] - current_position_i[0])**2 +
                        (goal_positions[i][1] - current_position_i[1])**2)
-    BlueRovs.goal_positions[i][
-        0] = current_position_i[0] + distance * math.cos(new_angle) # new goalposition x
-    BlueRovs.goal_positions[i][
-        1] = current_position_i[1] + distance * math.sin(new_angle) # new goalposition y
+    BlueRovs.goal_positions[i][0] = current_position_i[
+        0] + distance * math.cos(new_angle)  # new goalposition x
+    BlueRovs.goal_positions[i][1] = current_position_i[
+        1] + distance * math.sin(new_angle)  # new goalposition y
     # BlueRovs.destinations[i][0] = current_position

@@ -8,6 +8,9 @@
 
 # dimensionen der barriers (step_size: 0.01m) (=1cm)
 import numpy as np
+# from bluerov_simulation import bluerov_simulation # avoid circular import
+
+
 
 def get_walls(step_size, corners):
     walls = []
@@ -44,6 +47,24 @@ def def_barriers(step_size):
     basin_walls = get_walls(step_size, basin_corners)
 
     return np.vstack((obstacle_walls, basin_walls))
+
+def get_limits():
+
+    # x_lim = bluerov_simulation.params["xlim"]
+    # y_lim = bluerov_simulation.params["ylim"]
+    # x_lim_obstacle = bluerov_simulation.params["xlim_obstacle"]
+    # y_lim_obstacle = bluerov_simulation.params["ylim_obstacle"]
+
+    x_lim = np.array([0, 2])
+    y_lim = np.array([0, 4])
+    x_lim_obstacle = np.array([0.75, 1.25])
+    y_lim_obstacle = np.array([1.95, 2.05])
+
+    # return basinlimits, obstacle limits
+
+    return np.array([x_lim, y_lim]), np.array([x_lim_obstacle, y_lim_obstacle])
+
+
 
 
     # # Hindernis in der barriers eintragen

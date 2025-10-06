@@ -1,34 +1,35 @@
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.animation import FuncAnimation
-from lloyd_path import lloyd_path
+from lloyd_path import Lloyd
 from bluerov_simulation import bluerov_simulation
 
 
 def main():
 
-    N = 2  # Anzahl der Bluerovs (max 6 aufgrund von Tankgröße)
+    N = 5  # Anzahl der Bluerovs (max 6 aufgrund von Tankgröße)
     parameters = {
         "radius": 1,                    # Half of the sensing radius: dimension of the cells r_{s,i}=r_{s}
         # Tank ist 2x4 Meter
         "xlim": (0, 2),                 # Beckendimensionen in X-axis in m
         "ylim": (0, 4),                 # Beckendimensionen in Y-axis in m
+        "xlim_obstacle": (0.75, 1.25),   # Hindernisdimensionen in X-axis in m
+        "ylim_obstacle": (1.95, 2.05),   # Hindernisdimensionen in Y-axis in m
         "N": N,                         # Number of BlueROV2s
         "num_steps": 5000,              # Number of simulation steps
         "dx": 0.025,                    # Space discretization [It introduce an approximation. The lower the better, but it is computationally expensive]
         "dt": 0.033,                    # Time discretization 
-        "d1": 0.1,                      # d1 eq. (8) TODO scaling factor 
-        "d3": 0.1,                      # d3 eq. (9) TODO scaling factor
+        "d1": 0.4,                      # d1 eq. (8) TODO scaling factor # orig: 0.1
+        "d3": 0.4,                      # d3 eq. (9) TODO scaling factor # orig: 0.1
         "beta_min": 0.1,                # Minimum value for spreading factor rho TODO scaling factor
-        "betaD": [0.5]*N,               # Desired spreading factor \rho^D TODO scaling factor
+        "betaD": [0.2]*N,               # Desired spreading factor \rho^D TODO scaling factor
         "size": [0.24]*N,               # BlueROV2s encumbrance (radius): \delta
         "k": [20]*N,                    # Control parameter k_p TODO scaling factor
         "flag_plot": 1,                 
         "write_file": 1,
-        "v_max": [5]*N,                 # Maximum velocity for each robot TODO scaling factor                   
+        "v_max": [3]*N,                 # Maximum velocity for each robot TODO scaling factor # orig: 5                   
         "waiting_time":  400,           # waiting time after all the robots enter their goal regions.
-        # "h":1,                        # number to change each time you want to create a unique logging file name
+        "h":1,                        # number to change each time you want to create a unique logging file name
         "encumbrance_barriers": 0.1     # control the distance between the robot and the barriers (inflate/deflate)
 
     }
@@ -40,8 +41,21 @@ def main():
     simulation.initialize_simulation()
 
     # run the simulation
-    for step in range(parameters["num_steps"]):
-        simulation.simulate_step()
+    try:
+        for step in range(parameters["num_steps"]):
+            simulation.simulate_step()
+            
+            # Optional: Print progress every 100 steps
+            if step % 100 == 0:
+                stats = simulation.get_simulation_stats()
+                print(f"Step {stats['step']}: {stats['robots_at_goal']}/{parameters['N']} robots at goal")
+                
+    except KeyboardInterrupt:
+        print("Simulation interrupted by user")
+    finally:
+        # Clean up plot resources
+        simulation.cleanup_plot()
+        print("Simulation completed")
 
 if __name__ == "__main__":
     main()
