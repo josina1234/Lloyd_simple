@@ -7,7 +7,7 @@ from bluerov_simulation import bluerov_simulation
 
 def main():
 
-    N = 3  # Anzahl der Bluerovs (max 6 aufgrund von Tankgröße)
+    N = 5  # Anzahl der Bluerovs (max 6 aufgrund von Tankgröße)
     parameters = {
         "radius": 1,  # Half of the sensing radius: dimension of the cells r_{s,i}=r_{s}
         # Tank ist 2x4 Meter
@@ -20,11 +20,11 @@ def main():
         "dx": 0.025,  # Space discretization [It introduce an approximation. The lower the better, but it is computationally expensive]
         "dt": 0.033,  # Time discretization 
         "d1": 0.4,  # d1 eq. (8) TODO scaling factor # orig: 0.1
-        "d3": 0.4,  # d3 eq. (9) TODO scaling factor # orig: 0.1
+        "d3": 0.8,  # d3 eq. (9) TODO scaling factor # orig: 0.1
         "beta_min": 0.1,  # Minimum value for spreading factor rho TODO scaling factor
         "betaD": [0.1] * N,  # Desired spreading factor \rho^D TODO scaling factor
         "size": [0.24] * N,  # BlueROV2s encumbrance (radius): \delta
-        "k": [20] * N,  # Control parameter k_p TODO scaling factor
+        "k": [10] * N,  # Control parameter k_p TODO scaling factor
         "flag_plot": 1,
         "write_file": 1,
         "v_max": [5] * N,  # Maximum velocity for each robot TODO scaling factor # orig: 5

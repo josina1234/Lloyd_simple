@@ -5,7 +5,7 @@ import matplotlib.patches as patches
 import copy
 from BlueRovsInit import BlueRovsInit
 from lloyd_path import Lloyd, applyrules
-from barriers import def_barriers
+from barriers import def_barriers, get_limits
 
 
 class bluerov_simulation:
@@ -122,9 +122,8 @@ class bluerov_simulation:
                        self.c1, self.c2, self.theta, self.goal_positions,
                        self.BlueRovs, self.c1_no_rotation, d2, d4)
 
-            if np.linalg.norm(
-                    self.current_positions[i] -
-                    self.goal_positions[i]) < self.params["radius"]:
+            if np.linalg.norm(self.current_positions[i] -
+                              self.goal_positions[i]) < self.params["radius"]:
                 self.flag[i] = 1
             else:
                 self.flag[i] = 0
@@ -238,14 +237,16 @@ class bluerov_simulation:
         self.ax1.add_patch(basin_rect)
 
         # Add obstacle rectangle for better visualization
-        # Based on barriers.py: obstacle is at [[0.75, 1.95], [1.25, 1.95], [1.25, 2.05], [0.75, 2.05]]
-        obstacle_rect = patches.Rectangle((0.75, 1.95),
-                                          0.5,
-                                          0.1,
+        _, obstacle_limits = get_limits()
+        width = abs(np.round(obstacle_limits[0][0] - obstacle_limits[0][1], 3))
+        height = abs(np.round(obstacle_limits[1][0] - obstacle_limits[1][1], 3))
+        obstacle_rect = patches.Rectangle((obstacle_limits[0][0], obstacle_limits[1][0]),
+                                          width,
+                                          height,
                                           linewidth=2,
                                           edgecolor='red',
                                           facecolor='red',
-                                          alpha=0.7)
+                                          alpha=0.7) # alpha ist Deckkraft
         self.ax1.add_patch(obstacle_rect)
 
         self.barriers_plotted = True
