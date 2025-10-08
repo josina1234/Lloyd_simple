@@ -11,64 +11,65 @@ import numpy as np
 # from bluerov_simulation import bluerov_simulation # avoid circular import
 
 
+class barriers:
 
-def get_walls(step_size, corners):
-    walls = []
-    num_corners = len(corners)
-    for i in range(num_corners):
-        start = corners[i]
-        end = corners[(i + 1) % num_corners]  # Wrap around to the first corner
-        if start[0] == end[0]:  # Vertical wall (same x-coordinate)
-            y_values = np.arange(min(start[1], end[1]), max(start[1], end[1]) + step_size, step_size)
-            wall = np.column_stack((np.full_like(y_values, start[0]), y_values))
-        elif start[1] == end[1]:  # Horizontal wall, same y-coordinate
-            x_values = np.arange(min(start[0], end[0]), max(start[0], end[0]) + step_size, step_size)
-            wall = np.column_stack((x_values, np.full_like(x_values, start[1])))
-        else:
-            raise ValueError("Walls must be either vertical or horizontal. Please rearrange corners.")
-        walls.append(wall)
-    walls = np.vstack(walls)
-    walls = np.round(walls, decimals = 3) # avoid floating point issues
-    walls = np.unique(walls, axis=0)  # remove duplicate corner points
-    return walls
+    def __init__(self, step_size):
+        self.step_size = step_size  # m adjustable kommt aus main.py "dx"
+        self.lim_basin_x = np.array([0.0, 2.0])
+        self.lim_basin_y = np.array([0.0, 4.0])
+        self.lim_obs_x = np.array([0.75, 1.25])
+        self.lim_obs_y = np.array([1.95, 2.05])
 
-def def_barriers(step_size):
+    def get_walls(self, corners):
+        walls = []
+        num_corners = len(corners)
+        for i in range(num_corners):
+            start = corners[i]
+            end = corners[(i + 1) %
+                          num_corners]  # Wrap around to the first corner
+            if start[0] == end[0]:  # Vertical wall (same x-coordinate)
+                y_values = np.arange(min(start[1], end[1]),
+                                     max(start[1], end[1]) + self.step_size,
+                                     self.step_size)
+                wall = np.column_stack((np.full_like(y_values,
+                                                     start[0]), y_values))
+            elif start[1] == end[1]:  # Horizontal wall, same y-coordinate
+                x_values = np.arange(min(start[0], end[0]),
+                                     max(start[0], end[0]) + self.step_size,
+                                     self.step_size)
+                wall = np.column_stack(
+                    (x_values, np.full_like(x_values, start[1])))
+            else:
+                raise ValueError(
+                    "Walls must be either vertical or horizontal. Please rearrange corners."
+                )
+            walls.append(wall)
+        walls = np.vstack(walls)
+        walls = np.round(walls, decimals=3)  # avoid floating point issues
+        walls = np.unique(walls, axis=0)  # remove duplicate corner points
+        return walls
 
-    # basin dimensions
-    dim_x = 2.0  # Meter # get from main.py # change accordingly TODO
-    dim_y = 4.0   # Meter
-    basin_corners = np.array([[0, 0], [dim_x, 0], [dim_x, dim_y], [0, dim_y]])
-    # obstacle corners (Must be axis-aligned rectangles)
-    obstacle_corners = np.array([[0.9, 1.95], [1.1, 1.95], [1.1, 2.05], [0.9, 2.05]])
+    def def_barriers(self):
 
-    # # step size for barriers
-    # self.step_size = step_size # m adjustable kommt aus main.py "dx"
+        basin_corners = np.array([[self.lim_basin_x[0], self.lim_basin_y[0]],
+                                  [self.lim_basin_x[1], self.lim_basin_y[0]],
+                                  [self.lim_basin_x[1], self.lim_basin_y[1]],
+                                  [self.lim_basin_x[0], self.lim_basin_y[1]]])
+        obstacle_corners = np.array([[self.lim_obs_x[0], self.lim_obs_y[0]],
+                                     [self.lim_obs_x[1], self.lim_obs_y[0]],
+                                     [self.lim_obs_x[1], self.lim_obs_y[1]],
+                                     [self.lim_obs_x[0], self.lim_obs_y[1]]])
 
-    obstacle_walls = get_walls(step_size, obstacle_corners)
-    basin_walls = get_walls(step_size, basin_corners)
+        obstacle_walls = self.get_walls(obstacle_corners)
+        basin_walls = self.get_walls(basin_corners)
 
-    return np.vstack((obstacle_walls, basin_walls))
+        return np.vstack((obstacle_walls, basin_walls))
 
-def get_limits():
+    def get_limits(self):
+        # return basinlimits, obstacle limits
 
-    # x_lim = bluerov_simulation.params["xlim"]
-    # y_lim = bluerov_simulation.params["ylim"]
-    # x_lim_obstacle = bluerov_simulation.params["xlim_obstacle"]
-    # y_lim_obstacle = bluerov_simulation.params["ylim_obstacle"]
-
-    x_lim = np.array([0, 2])
-    y_lim = np.array([0, 4])
-    x_lim_obstacle = np.array([0.9, 1.1])
-    y_lim_obstacle = np.array([1.95, 2.05])
-
-
-
-    # return basinlimits, obstacle limits
-
-    return np.array([x_lim, y_lim]), np.array([x_lim_obstacle, y_lim_obstacle])
-
-
-
+        return np.array([self.lim_basin_x, self.lim_basin_y
+                         ]), np.array([self.lim_obs_x, self.lim_obs_y])
 
     # # Hindernis in der barriers eintragen
     # hindernis_x = (hindernis1[:, 0] / self.step_size).astype(int)
@@ -88,6 +89,7 @@ def get_limits():
 
     # return barriers
 
+
 # def euc_to_grid(self, position):
 #     # position in meter (x,y)
 #     # position in barriers umrechnen
@@ -95,21 +97,10 @@ def get_limits():
 #     grid_y = int(position[1] / self.step_size)
 #     return (grid_x, grid_y)
 
-
-
-
 # def update_barriers(self, barriers, grid_position_rob1, grid_position_rob2):
 #     # roboterposition bestehend aus x und y in  meter
 #     # Roboterpositionen in barriers-Indizes umrechnen):
 
 #     #ggf unnötig
 
-
-    
-    
-
-
-
-    # return barriers
-
-
+# return barriers

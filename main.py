@@ -7,14 +7,9 @@ from bluerov_simulation import bluerov_simulation
 
 def main():
 
-    N = 5  # Anzahl der Bluerovs (max 6 aufgrund von Tankgröße)
+    N = 3  # Anzahl der Bluerovs (max 6 aufgrund von Tankgröße)
     parameters = {
         "radius": 1,  # Half of the sensing radius: dimension of the cells r_{s,i}=r_{s}
-        # Tank ist 2x4 Meter
-        "xlim": (0, 2),  # Beckendimensionen in X-axis in m
-        "ylim": (0, 4),  # Beckendimensionen in Y-axis in m
-        "xlim_obstacle": (0.75, 1.25),  # Hindernisdimensionen in X-axis in m
-        "ylim_obstacle": (1.95, 2.05),  # Hindernisdimensionen in Y-axis in m
         "N": N,  # Number of BlueROV2s
         "num_steps": 5000,  # Number of simulation steps
         "dx": 0.025,  # Space discretization [It introduce an approximation. The lower the better, but it is computationally expensive]
@@ -30,7 +25,7 @@ def main():
         "v_max": [5] * N,  # Maximum velocity for each robot TODO scaling factor # orig: 5
         "waiting_time": 400,  # waiting time after all the robots enter their goal regions.
         "h": 1,  # number to change each time you want to create a unique logging file name
-        "encumbrance_barriers": 0.1  # control the distance between the robot and the barriers (inflate/deflate)
+        "encumbrance_barriers": 0.05  # control the distance between the robot and the barriers (inflate/deflate)
     }
 
     # create an instance of the bluerov_simulation class

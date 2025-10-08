@@ -5,7 +5,7 @@ import matplotlib.patches as patches
 import copy
 from BlueRovsInit import BlueRovsInit
 from lloyd_path import Lloyd, applyrules
-from barriers import def_barriers, get_limits
+from barriers import barriers
 
 
 class bluerov_simulation:
@@ -46,6 +46,11 @@ class bluerov_simulation:
         )  # Initialization of the spreading factor rho
         self.step = 0  # simulation step counter
 
+        # barriers
+        Barriers = barriers(self.params["dx"])
+        self.all_barriers = Barriers.def_barriers()
+        self.basin_limits, self.obstacle_limits = Barriers.get_limits()
+
         # Plotting components for efficiency
         self.fig = None
         self.ax1 = None
@@ -75,16 +80,6 @@ class bluerov_simulation:
             for i in range(self.params["N"])
         ]
 
-        # Initialisierung des virtuellen Lloyd-Algorithmus ohne Nachbarn
-        """self.Lloyd2 = [
-            Lloyd(self.current_positions[i], self.params["radius"],
-                  self.params["size"][i],
-                  np.delete(self.params["size"], i, axis=0),
-                  self.params["k"][i], self.params["dx"], self.params["dt"],
-                  self.params["encumbrance_barriers"], self.params["v_max"][i])
-            for i in range(self.params["N"])
-        ]  # ggf unnecessary, Lloyd2 just for debugging purposes TODO"""
-
         # plotting setup with barriers and improved efficiency
         self._setup_plot_with_barriers()
 
@@ -98,13 +93,11 @@ class bluerov_simulation:
             # Ergebnis sind zwei arrays mit den Nachbarpositionen bzw. der Größe der Nachbarn
             self.Lloyd[i].aggregate(neighbour_positions, self.beta[i],
                                     self.goal_positions[i])
-            """self.Lloyd2[i].aggregate(neighbour_positions, self.beta[i], self.goal_positions[i])"""
 
             # Berechnung der neuen Zielpositionen (c1 und c2)
             # c1 mit Nachbarn
             # c2 ohne Nachbarn
             self.c1[i], self.c2[i] = self.Lloyd[i].get_centroid()
-            """self.c1_no_rotation[i], _ = self.Lloyd2[i].get_centroid()"""
 
             # control input
             u = self.Lloyd[i].compute_control(
@@ -170,10 +163,10 @@ class bluerov_simulation:
                            fontsize=14)
 
         # Set plot limits based on basin dimensions
-        self.ax1.set_xlim(self.params["xlim"][0] - 0.1,
-                          self.params["xlim"][1] + 0.1)
-        self.ax1.set_ylim(self.params["ylim"][0] - 0.1,
-                          self.params["ylim"][1] + 0.1)
+        self.ax1.set_xlim(self.basin_limits[0][0] - 0.1,
+                          self.basin_limits[0][1] + 0.1)
+        self.ax1.set_ylim(self.basin_limits[1][0] - 0.1,
+                          self.basin_limits[1][1] + 0.1)
 
         # Plot barriers (walls and obstacles)
         self._plot_barriers()
@@ -187,20 +180,19 @@ class bluerov_simulation:
         """
         Plot basin walls and obstacles
         """
-        # Get barrier coordinates
-        barriers = def_barriers(self.params["dx"])
+        # Get barrier coordinates and data
 
         # Separate basin walls from obstacles based on position
         basin_points = []
         obstacle_points = []
 
-        for point in barriers:
+        for point in self.all_barriers:
             x, y = point
             # Points on the basin boundary are basin walls
-            if (abs(x - self.params["xlim"][0]) < 1e-6
-                    or abs(x - self.params["xlim"][1]) < 1e-6
-                    or abs(y - self.params["ylim"][0]) < 1e-6
-                    or abs(y - self.params["ylim"][1]) < 1e-6):
+            if (abs(x - self.basin_limits[0][0]) < 1e-6
+                    or abs(x - self.basin_limits[0][1]) < 1e-6
+                    or abs(y - self.basin_limits[1][0]) < 1e-6
+                    or abs(y - self.basin_limits[1][1]) < 1e-6):
                 basin_points.append(point)
             else:
                 obstacle_points.append(point)
@@ -226,10 +218,11 @@ class bluerov_simulation:
                              label='Obstacles')
 
         # Add basin boundary rectangle for clearer visualization
+
         basin_rect = patches.Rectangle(
-            (self.params["xlim"][0], self.params["ylim"][0]),
-            self.params["xlim"][1] - self.params["xlim"][0],
-            self.params["ylim"][1] - self.params["ylim"][0],
+            (self.basin_limits[0][0], self.basin_limits[1][0]),
+            self.basin_limits[0][1] - self.basin_limits[0][0],
+            self.basin_limits[1][1] - self.basin_limits[1][0],
             linewidth=3,
             edgecolor='black',
             facecolor='none',
@@ -237,16 +230,20 @@ class bluerov_simulation:
         self.ax1.add_patch(basin_rect)
 
         # Add obstacle rectangle for better visualization
-        _, obstacle_limits = get_limits()
-        width = abs(np.round(obstacle_limits[0][0] - obstacle_limits[0][1], 3))
-        height = abs(np.round(obstacle_limits[1][0] - obstacle_limits[1][1], 3))
-        obstacle_rect = patches.Rectangle((obstacle_limits[0][0], obstacle_limits[1][0]),
-                                          width,
-                                          height,
-                                          linewidth=2,
-                                          edgecolor='red',
-                                          facecolor='red',
-                                          alpha=0.7) # alpha ist Deckkraft
+        width = abs(
+            np.round(self.obstacle_limits[0][0] - self.obstacle_limits[0][1],
+                     3))
+        height = abs(
+            np.round(self.obstacle_limits[1][0] - self.obstacle_limits[1][1],
+                     3))
+        obstacle_rect = patches.Rectangle(
+            (self.obstacle_limits[0][0], self.obstacle_limits[1][0]),
+            width,
+            height,
+            linewidth=2,
+            edgecolor='red',
+            facecolor='red',
+            alpha=0.7)  # alpha ist Deckkraft
         self.ax1.add_patch(obstacle_rect)
 
         self.barriers_plotted = True
